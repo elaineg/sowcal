@@ -122,4 +122,4 @@ default values, and are verifiable in seconds with curl or a browser.
 - Timed (non-all-day) events and timezone handling; fall-frost-only/overwinter crop
   edge polish.
 
-Production URL: TBD
+Production URL: https://sowcal.vercel.app
