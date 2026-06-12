@@ -39,6 +39,9 @@ ICS feed** that calendar apps poll, plus the shareable-link plan — verified un
   suggested intervalDays.
 - Event SUMMARY format (exact, so checks can assert on it): `Sow Lettuce #1`,
   `Transplant Lettuce #1`, `Harvest Lettuce #1`, `Harvest Lettuce #2 (frost risk)`.
+- The same crop id may appear more than once in `crops` (e.g. a spring run and a fall
+  run with different offsets). The k-th occurrence (k ≥ 2) is labeled `Lettuce (k)` in
+  SUMMARYs and the builder (`Sow Lettuce (2) #1`); the first occurrence is unchanged.
 
 ## Core flows
 
@@ -56,8 +59,11 @@ ICS feed** that calendar apps poll, plus the shareable-link plan — verified un
    parameters in the query string, no DB, no signup. Emits a valid VCALENDAR of all-day
    events (`DTSTART;VALUE=DATE`) for every sow, transplant (transplanted crops only), and
    expected-harvest date of every succession per the date math above. UIDs are
-   deterministic functions of (crop id, succession number, event type), e.g.
-   `sow-lettuce-1@sowcal`, and the body contains no timestamps derived from "now" — the
+   deterministic functions of (crop id, occurrence index in the crops list, succession
+   number, event type) and are unique within the VCALENDAR even when the same crop id
+   appears multiple times: the first occurrence is `sow-lettuce-1@sowcal`, the k-th
+   (k ≥ 2) is `sow-lettuce.2-1@sowcal` (crop ids cannot contain `.`, so no collisions).
+   The body contains no timestamps derived from "now" — the
    same URL returns a byte-identical body every time, so calendar re-syncs update rather
    than duplicate. Response headers set explicitly: `Content-Type: text/calendar;
    charset=utf-8`, `Cache-Control: public, max-age=3600`, and

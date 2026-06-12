@@ -50,6 +50,20 @@ describe("buildIcs", () => {
     expect(body.match(/DTSTAMP:20260515T000000Z/g)).toHaveLength(6);
   });
 
+  it("emits unique UIDs when the same crop appears twice (validator P1)", () => {
+    const twice = buildIcs(plan("lettuce:14:2:-28:14:55,lettuce:7:2:0:14:55"));
+    expect(twice.match(/BEGIN:VEVENT/g)).toHaveLength(12);
+    const uids = [...twice.matchAll(/UID:(\S+)/g)].map((m) => m[1]);
+    expect(uids).toHaveLength(12);
+    expect(new Set(uids).size).toBe(12);
+    // First run unchanged, second run disambiguated:
+    expect(uids).toContain("sow-lettuce-1@sowcal");
+    expect(uids).toContain("sow-lettuce.2-1@sowcal");
+    expect(twice).toContain("SUMMARY:Sow Lettuce (2) #1\r\n");
+    // Still byte-identical across calls:
+    expect(buildIcs(plan("lettuce:14:2:-28:14:55,lettuce:7:2:0:14:55"))).toBe(twice);
+  });
+
   it("emits no transplant events for direct-sow crops (check 2)", () => {
     const carrot = buildIcs(plan("carrot:21:3:0:-:70"));
     expect(carrot.match(/BEGIN:VEVENT/g)).toHaveLength(6);

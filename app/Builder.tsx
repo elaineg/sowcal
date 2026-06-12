@@ -142,6 +142,15 @@ export default function Builder({ initial }: { initial: BuilderInitial }) {
     ]);
   };
 
+  // 1-based occurrence per row among rows with the same crop id; the 2nd+ run of a
+  // crop is labeled "Lettuce (2)" to match the feed/plan summaries.
+  const occCounts = new Map<string, number>();
+  const occurrences = rows.map((r) => {
+    const k = (occCounts.get(r.id) ?? 0) + 1;
+    occCounts.set(r.id, k);
+    return k;
+  });
+
   const problems: string[] = [];
   if (!DATE_RE.test(lf)) problems.push("Enter the last spring frost date.");
   if (!DATE_RE.test(ff)) problems.push("Enter the first fall frost date.");
@@ -212,7 +221,9 @@ export default function Builder({ initial }: { initial: BuilderInitial }) {
                 className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
               >
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold">{r.name}</span>
+                  <span className="font-semibold">
+                    {occurrences[i] > 1 ? `${r.name} (${occurrences[i]})` : r.name}
+                  </span>
                   <button
                     type="button"
                     aria-label={`Remove ${r.name}`}

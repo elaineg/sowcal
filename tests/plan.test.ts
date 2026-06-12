@@ -82,6 +82,60 @@ describe("date math", () => {
   });
 });
 
+describe("repeated crops (e.g. spring + fall runs of the same crop)", () => {
+  // Validator P1 repro: lettuce twice with different offsets.
+  const CROPS = "lettuce:14:2:-28:14:55,lettuce:7:2:0:14:55";
+
+  it("emits a unique UID for every event", () => {
+    const events = planEvents(mustParse({ ...OK, crops: CROPS }));
+    expect(events).toHaveLength(12);
+    const uids = events.map((e) => e.uid);
+    expect(new Set(uids).size).toBe(uids.length);
+  });
+
+  it("keeps first-occurrence UIDs/summaries identical to the single-crop case", () => {
+    const events = planEvents(mustParse({ ...OK, crops: CROPS }));
+    const first = events.filter((e) => e.occurrence === 1);
+    expect(first.map((e) => e.uid).sort()).toEqual([
+      "harvest-lettuce-1@sowcal",
+      "harvest-lettuce-2@sowcal",
+      "sow-lettuce-1@sowcal",
+      "sow-lettuce-2@sowcal",
+      "transplant-lettuce-1@sowcal",
+      "transplant-lettuce-2@sowcal",
+    ]);
+    expect(first.map((e) => e.summary)).not.toContain("Sow Lettuce (1) #1");
+  });
+
+  it("disambiguates the 2nd occurrence in UID and summary, deterministically", () => {
+    const events = planEvents(mustParse({ ...OK, crops: CROPS }));
+    const second = events.filter((e) => e.occurrence === 2);
+    expect(second.map((e) => e.uid).sort()).toEqual([
+      "harvest-lettuce.2-1@sowcal",
+      "harvest-lettuce.2-2@sowcal",
+      "sow-lettuce.2-1@sowcal",
+      "sow-lettuce.2-2@sowcal",
+      "transplant-lettuce.2-1@sowcal",
+      "transplant-lettuce.2-2@sowcal",
+    ]);
+    expect(second.map((e) => e.summary)).toContain("Sow Lettuce (2) #1");
+    // Deterministic: recomputing yields identical events in identical order.
+    const again = planEvents(mustParse({ ...OK, crops: CROPS }));
+    expect(again).toEqual(events);
+  });
+
+  it("cannot collide with a distinct crop id, since ids cannot contain dots", () => {
+    // A hostile-ish plan: custom crop literally named "lettuce-2" plus lettuce twice.
+    const plan = mustParse({
+      ...OK,
+      crops: "lettuce:14:1:-28:14:55,lettuce:7:1:0:14:55,lettuce-2:14:1:0:-:55",
+    });
+    const uids = planEvents(plan).map((e) => e.uid);
+    expect(new Set(uids).size).toBe(uids.length);
+    expect(parsePlanParams({ ...OK, crops: "lettuce.2:14:1:0:-:55" }).ok).toBe(false);
+  });
+});
+
 describe("parsePlanParams validation", () => {
   it("rejects a malformed lf, naming the field (spec check 8)", () => {
     const r = parsePlanParams({ lf: "notadate", crops: "lettuce:14:2" });

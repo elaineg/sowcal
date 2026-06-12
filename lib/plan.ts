@@ -26,10 +26,11 @@ export interface PlanEvent {
   type: EventType;
   cropId: string;
   cropName: string;
+  occurrence: number; // 1-based position among entries with the same crop id
   n: number; // succession number, 1-based
   date: string; // YYYY-MM-DD
-  summary: string; // e.g. "Sow Lettuce #1", "Harvest Lettuce #2 (frost risk)"
-  uid: string; // e.g. "sow-lettuce-1@sowcal"
+  summary: string; // e.g. "Sow Lettuce #1"; repeated crops: "Sow Lettuce (2) #1"
+  uid: string; // e.g. "sow-lettuce-1@sowcal"; repeated crops: "sow-lettuce.2-1@sowcal"
 }
 
 export type ParseResult =
@@ -193,10 +194,23 @@ const TYPE_VERB: Record<EventType, string> = {
   harvest: "Harvest",
 };
 
-/** Compute every sow/transplant/harvest event for the plan, in season order. */
+/** Compute every sow/transplant/harvest event for the plan, in season order.
+ *
+ * The same crop id may appear more than once in the crops list (e.g. a spring run
+ * and a fall run with different offsets). Each entry gets a 1-based occurrence
+ * index; the 2nd+ occurrence is disambiguated in UIDs (".2") and summaries (" (2)")
+ * so the VCALENDAR never contains duplicate UIDs (RFC 5545) and the first
+ * occurrence keeps the exact UIDs/SUMMARYs of the single-crop case. Crop ids
+ * cannot contain "." (see ID_RE), so the disambiguated UIDs cannot collide with
+ * any other crop's UIDs. Everything stays a pure function of the parameters. */
 export function planEvents(plan: Plan): PlanEvent[] {
   const events: PlanEvent[] = [];
+  const seen = new Map<string, number>();
   for (const crop of plan.crops) {
+    const occurrence = (seen.get(crop.id) ?? 0) + 1;
+    seen.set(crop.id, occurrence);
+    const uidId = occurrence > 1 ? `${crop.id}.${occurrence}` : crop.id;
+    const displayName = occurrence > 1 ? `${crop.name} (${occurrence})` : crop.name;
     for (let n = 1; n <= crop.count; n++) {
       const sowDate = addDays(plan.lf, crop.sowOffset + (n - 1) * crop.intervalDays);
       const push = (type: EventType, date: string, frostRisk: boolean) => {
@@ -205,10 +219,11 @@ export function planEvents(plan: Plan): PlanEvent[] {
           type,
           cropId: crop.id,
           cropName: crop.name,
+          occurrence,
           n,
           date,
-          summary: `${TYPE_VERB[type]} ${crop.name} #${n}${suffix}`,
-          uid: `${type}-${crop.id}-${n}@sowcal`,
+          summary: `${TYPE_VERB[type]} ${displayName} #${n}${suffix}`,
+          uid: `${type}-${uidId}-${n}@sowcal`,
         });
       };
       push("sow", sowDate, false);
@@ -225,6 +240,7 @@ export function planEvents(plan: Plan): PlanEvent[] {
       a.date.localeCompare(b.date) ||
       TYPE_ORDER[a.type] - TYPE_ORDER[b.type] ||
       a.cropId.localeCompare(b.cropId) ||
+      a.occurrence - b.occurrence ||
       a.n - b.n
   );
   return events;
